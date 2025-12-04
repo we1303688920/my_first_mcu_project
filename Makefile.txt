@@ -1,0 +1,107 @@
+# 项目名称
+PROJECT_NAME = Weather_Smart_Clock
+
+# 工具链定义
+PREFIX = arm-none-eabi-
+CC = $(PREFIX)gcc
+AS = $(PREFIX)gcc -x assembler-with-cpp
+CP = $(PREFIX)objcopy
+SZ = $(PREFIX)size
+HEX = $(CP) -O ihex
+BIN = $(CP) -O binary -S
+
+# MCU定义
+CPU = -mcpu=cortex-m4
+FPU = -mfpu=fpv4-sp-d16
+FLOAT-ABI = -mfloat-abi=hard
+MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
+
+# 包含目录
+C_INCLUDES =  \
+-ICore/Inc \
+-IDrivers/STM32F4xx_HAL_Driver/Inc \
+-IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
+-IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
+-IDrivers/CMSIS/Include \
+-IMiddlewares/Third_Party/FreeRTOS/Source/include \
+-IMiddlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 \
+-IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F \
+-IApp/Inc \
+-IHardware/Inc
+
+# 源文件
+C_SOURCES =  \
+Core/Src/main.c \
+Core/Src/stm32f4xx_it.c \
+Core/Src/stm32f4xx_hal_msp.c \
+Core/Src/system_stm32f4xx.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
+Middlewares/Third_Party/FreeRTOS/Source/croutine.c \
+Middlewares/Third_Party/FreeRTOS/Source/event_groups.c \
+Middlewares/Third_Party/FreeRTOS/Source/list.c \
+Middlewares/Third_Party/FreeRTOS/Source/queue.c \
+Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c \
+Middlewares/Third_Party/FreeRTOS/Source/tasks.c \
+Middlewares/Third_Party/FreeRTOS/Source/timers.c \
+Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c \
+Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c \
+Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c \
+App/Src/display_task.c \
+App/Src/uart_comm_task.c \
+App/Src/rtc_task.c \
+App/Src/button_task.c \
+App/Src/weather_parser.c \
+App/Src/ui_render.c \
+Hardware/Src/lcd_driver.c \
+Hardware/Src/uart_driver.c \
+Hardware/Src/rtc_driver.c \
+Hardware/Src/gpio_config.c \
+Hardware/Src/spi_driver.c
+
+# 编译标志
+CFLAGS = $(MCU) $(C_DEFS) $(C_INCLUDES) -Wall -fdata-sections -ffunction-sections
+CFLAGS += -g -O0 -std=gnu11
+CFLAGS += -DDEBUG -DUSE_FULL_ASSERT
+
+# 链接标志
+LDFLAGS = $(MCU) -specs=nano.specs -TSTM32F407ZETx_FLASH.ld
+LDFLAGS += -Wl,--gc-sections --static -Wl,--start-group -lc -lm -Wl,--end-group
+
+# 默认目标
+all: $(PROJECT_NAME).elf $(PROJECT_NAME).hex $(PROJECT_NAME).bin
+
+# 编译规则
+%.o: %.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+%.o: %.s
+	$(AS) -c $(CFLAGS) $< -o $@
+
+$(PROJECT_NAME).elf: $(C_SOURCES:.c=.o)
+	$(CC) $^ $(LDFLAGS) -o $@
+	$(SZ) $@
+
+%.hex: %.elf
+	$(HEX) $< $@
+
+%.bin: %.elf
+	$(BIN) $< $@
+
+# 清理
+clean:
+	rm -f $(C_SOURCES:.c=.o) $(PROJECT_NAME).elf $(PROJECT_NAME).hex $(PROJECT_NAME).bin
+
+# 烧录
+flash: $(PROJECT_NAME).bin
+	openocd -f interface/stlink-v2.cfg -f target/stm32f4x.cfg \
+	-c "program $(PROJECT_NAME).elf verify reset exit"
+
+.PHONY: all clean flash
